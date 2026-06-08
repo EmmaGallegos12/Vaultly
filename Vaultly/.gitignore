@@ -1,0 +1,36 @@
+# ==========================================
+# .gitignore para proyectos Swift / Xcode
+# ==========================================
+
+# 1. Archivos ocultos del sistema operativo (macOS)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 2. Archivos temporales de compilación y carpetas de Xcode
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+*.hmap
+*.ipa
+
+# 3. Configuraciones personales del usuario (¡Muy importante!)
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+# 4. Archivos de pruebas y reportes
+*.xccheckout
+*.profile
+Coverage/
+
+# 5. Swift Package Manager (Herramienta nativa para dependencias)
+.build/
+*.resolved
