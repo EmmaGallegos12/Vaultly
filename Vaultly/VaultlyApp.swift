@@ -1,32 +1,15 @@
-//
-//  VaultlyApp.swift
-//  Vaultly
-//
-//  Created by Emmanuel Gallegos on 07/06/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct VaultlyApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
     var body: some Scene {
         WindowGroup {
+            // Esta es tu vista principal
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+        // Este modificador es CRUCIAL. Inicializa la base de datos
+        // y le dice a la app que guarde los modelos de tipo 'Transaction'
+        .modelContainer(for: Transaction.self)
     }
 }

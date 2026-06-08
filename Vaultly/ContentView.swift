@@ -1,80 +1,116 @@
-//
-//  ContentView.swift
-//  Vaultly
-//
-//  Created by Emmanuel Gallegos on 07/06/26.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
+    
+    @State private var selection: String? = "Dashboard"
+    @State private var showingAddSheet = false
+    
     var body: some View {
-        NavigationViewWrapper {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        NavigationSplitView {
+            // Barra lateral (Sidebar)
+            List(selection: $selection) {
+                NavigationLink(value: "Dashboard") {
+                    Label("Mi Resumen", systemImage: "chart.pie.fill")
                 }
-                .onDelete(perform: deleteItems)
+                NavigationLink(value: "All") {
+                    Label("Todas las transacciones", systemImage: "tray.full")
+                }
+                
             }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+            .navigationTitle("Vaultly")
+        } detail: {
+            // Vista de detalle: Lista principal de transacciones
+            if  selection == "Dashboard"{
+                DashboardView(transactions: transactions)
+            }else if selection == "All" {
+                List {
+                    ForEach(transactions) { transaction in
+                        TransactionRow(transaction: transaction)
                     }
+                    .onDelete(perform: deleteTransactions)
+                }
+                .navigationTitle("Transacciones")
+                .toolbar {
+                    ToolbarItem {
+                        Button(action: { showingAddSheet = true }) {
+                            Label("Añadir", systemImage: "plus")
+                        }
+                    }
+                }
+            } else {
+                Text("Selecciona una categoría")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            AddTransactionView()
+        }
+        .onAppear {
+            // Insertar mocks si está vacío para propósitos de demostración
+            if transactions.isEmpty {
+                for mock in Transaction.mocks {
+                    modelContext.insert(mock)
                 }
             }
         }
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
+    
+    private func deleteTransactions(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(items[index])
+                modelContext.delete(transactions[index])
             }
         }
     }
 }
 
-fileprivate struct NavigationViewWrapper<Content: View>: View {
-    let content: () -> Content
-
+/// Una fila personalizada para mostrar detalles de la transacción.
+struct TransactionRow: View {
+    let transaction: Transaction
+    
     var body: some View {
-#if os(macOS)
-        NavigationSplitView {
-            content()
-        } detail: {
-            Text("Select an item")
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(transaction.title)
+                    .font(.headline)
+                Text(transaction.category)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formatAmount(transaction.amount, isExpense: transaction.isExpense))
+                    .font(.system(.body, design: .monospaced))
+                    .fontWeight(.bold)
+                    .foregroundColor(transaction.isExpense ? .red : .green)
+                
+                Text(transaction.date, style: .date)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
-#else
-        content()
-#endif
+        .padding(.vertical, 4)
+    }
+    
+    private func formatAmount(_ amount: Double, isExpense: Bool) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        
+        let formatted = formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        return isExpense ? "- \(formatted)" : "+ \(formatted)"
     }
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Transaction.self, configurations: config)
+    
+    return ContentView()
+        .modelContainer(container)
 }
