@@ -2,77 +2,86 @@ import SwiftUI
 import SwiftData
 
 struct AddTransactionView: View {
-    // Permite interactuar con la base de datos de SwiftData
     @Environment(\.modelContext) private var modelContext
-    // Permite cerrar esta ventana modal de forma programática
     @Environment(\.dismiss) private var dismiss
-    
-    // Estados locales para capturar los datos del formulario
+
+    // Preferencia de moneda compartida
+    @AppStorage("currencyCode") private var currencyCode: String = "USD"
+
+    // Estados del formulario
     @State private var title: String = ""
     @State private var amount: Double = 0.0
-    @State private var category: String = "General"
+    @State private var category: String = "Otros"
     @State private var isExpense: Bool = true
     @State private var date: Date = Date()
-    @State private var isPaid: Bool = true
-    
-    
-    // Lista de categorías predefinidas
-    let categories = ["General", "Alimentación", "Vivienda", "Salario", "Entretenimiento", "Finanzas"]
-    
+
+    // Estados de recurrencia
+    @State private var isRecurring: Bool = false
+    @State private var recurrenceFrequency: RecurrenceFrequency = .monthly
+
+    // Listas dinámicas de categorías
+    private let expenseCategories = ["Vivienda", "Alimentación", "Transporte", "Entretenimiento", "Salud", "Otros"]
+    private let incomeCategories = ["Salario", "Ventas", "Inversiones", "Regalo", "Otros"]
+
     var body: some View {
         NavigationStack {
             Form {
+                // 1. Selector de tipo de movimiento (Top)
+                Picker("Tipo de movimiento", selection: $isExpense) {
+                    Text("Gasto").tag(true)
+                    Text("Ingreso").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .onChange(of: isExpense) {
+                    // Reiniciar categoría al cambiar de tipo para evitar inconsistencias
+                    category = "Otros"
+                }
+
                 Section(header: Text("Detalles del movimiento")) {
-                    // Campo para el título
-                    TextField("Concepto o título", text: $title)
-                    
-                    // Selector tipo espejo/segmentado para Gasto o Ingreso
-                    Picker("Tipo", selection: $isExpense) {
-                        Text("Gasto").tag(true)
-                        Text("Ingreso").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    
-                    // Campo formateado para divisas (Moneda en USD)
-                    TextField("Monto", value: $amount, format: .currency(code: "USD"))
-                    
-                    // Selector de fecha nativo de macOS
+                    TextField("Concepto", text: $title)
+
+                    // Formato de moneda dinámico basado en Settings
+                    TextField("Monto", value: $amount, format: .currency(code: currencyCode))
+
                     DatePicker("Fecha", selection: $date, displayedComponents: .date)
-                    
-                    Toggle("¿Ya está pagado?", isOn: $isPaid)
-                    
-                    // Selector de categoría
+
                     Picker("Categoría", selection: $category) {
-                        ForEach(categories, id: \.self) { cat in
+                        ForEach(isExpense ? expenseCategories : incomeCategories, id: \.self) { cat in
                             Text(cat).tag(cat)
                         }
                     }
                 }
-            }
-            .padding()
-            // Dimensiones recomendadas para que se vea cómodo y estético en macOS
-            .frame(minWidth: 400, minHeight: 320)
-            .navigationTitle("Nueva Transacción")
-            .toolbar {
-                // Botón para cancelar y cerrar sin guardar
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancelar") {
-                        dismiss()
+
+                Section(header: Text("Recurrencia")) {
+                    Toggle("Movimiento recurrente", isOn: $isRecurring)
+
+                    if isRecurring {
+                        Picker("Frecuencia", selection: $recurrenceFrequency) {
+                            ForEach(RecurrenceFrequency.allCases.filter { $0 != .none }) { frequency in
+                                Text(frequency.rawValue).tag(frequency)
+                            }
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                // Botón para confirmar y guardar en la base de datos
+            }
+            .animation(.spring(), value: isRecurring)
+            .padding()
+            .frame(minWidth: 400, minHeight: 450)
+            .navigationTitle("Nueva Transacción")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Guardar") {
-                        saveTransaction()
-                    }
-                    // Validación simple: no deja guardar si no hay título o el monto es 0
-                    .disabled(title.isEmpty || amount <= 0)
+                    Button("Guardar") { saveTransaction() }
+                        .disabled(title.isEmpty || amount <= 0)
                 }
             }
         }
     }
-    
-    /// Crea el modelo real con los datos capturados y lo inserta en SwiftData
+
     private func saveTransaction() {
         let newTransaction = Transaction(
             title: title,
@@ -80,12 +89,13 @@ struct AddTransactionView: View {
             date: date,
             category: category,
             isExpense: isExpense,
-            isPaid: isPaid
+            isRecurring: isRecurring,
+            recurrenceFrequency: isRecurring ? recurrenceFrequency : .none
         )
-        
+
         withAnimation {
             modelContext.insert(newTransaction)
-            dismiss() // Cierra la hoja modal automáticamente
+            dismiss()
         }
     }
 }
